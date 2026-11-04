@@ -30,7 +30,7 @@ NODE_ID = "node1"
 DB_TIME_IS_UTC = False          # same setting as server.py
 
 OPENWEATHER_KEY = "Your-OpenWeather-api-key"
-LAT, LON = 18.7883, 98.9853     # change to your station's exact coordinates (right-click on Google Maps)
+LAT, LON = Lat, Lon    # change to your station's exact coordinates (right-click on Google Maps)
 
 RUN_EVERY = 600                 # seconds between forecasts / OpenWeather checks
 HORIZON_H = 6                   # a forecast "rain" means rain within this many hours
