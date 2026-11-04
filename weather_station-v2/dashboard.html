@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather Station</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #e8edef;
+    --surface: #f6f8f9;
+    --ink: #13292f;
+    --muted: #5d7279;
+    --rule: #c5d0d4;
+    --temp: #b8431f;
+    --hum: #1b6a86;
+    --press: #5a4a8c;
+    --ok: #2a7d58;
+    --warn: #a86b00;
+    --off: #7c8a8f;
+  }
+  * { box-sizing: border-box; }
+  html { font-family: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif; color: var(--ink); background: var(--bg); }
+  body { margin: 0; padding: 24px clamp(16px, 4vw, 48px) 64px; max-width: 1040px; margin-inline: auto; line-height: 1.6; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  header { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid var(--rule); }
+  h1 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+  .sub { color: var(--muted); font-size: .9rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--off); display: inline-block; }
+  .dot.on { background: var(--ok); }
+  .dot.bad { background: var(--temp); }
+
+  .power { display: flex; align-items: center; gap: 14px; }
+  .power-text { text-align: right; line-height: 1.3; }
+  .power-text b { display: block; font-weight: 600; }
+  .power-text span { font-size: .85rem; color: var(--muted); }
+  .switch { width: 64px; height: 34px; border-radius: 17px; border: 0; background: var(--off); position: relative; cursor: pointer; transition: background .2s; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .switch[aria-checked="true"] { background: var(--ok); }
+  .switch[aria-checked="true"]::after { transform: translateX(30px); }
+  .switch:disabled { opacity: .55; cursor: not-allowed; }
+  .switch:focus-visible, .range button:focus-visible { outline: 3px solid var(--hum); outline-offset: 3px; }
+
+  .ghost { font: inherit; font-size: .9rem; padding: 6px 16px; border-radius: 17px; border: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer; }
+  .ghost:hover:not(:disabled) { border-color: var(--ink); }
+  .ghost:disabled { opacity: .55; cursor: not-allowed; }
+  .ghost:focus-visible { outline: 3px solid var(--hum); outline-offset: 3px; }
+  .now { display: grid; grid-template-columns: repeat(4, 1fr); margin: 28px 0 8px; }
+  .m { padding: 4px 20px; border-left: 1px solid var(--rule); }
+  .m:first-child { border-left: 0; padding-left: 0; }
+  .lbl { display: block; color: var(--muted); font-size: .9rem; }
+  .val { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 300; line-height: 1.15; }
+  .unit { font-size: 1rem; color: var(--muted); margin-left: 4px; }
+  .note { display: block; font-size: .8rem; color: var(--muted); }
+  #stale { margin: 0 0 8px; font-size: .9rem; color: var(--warn); min-height: 1.5em; }
+
+  .fc { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  .fc h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .now.three { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
+  .fc p { margin: 4px 0; color: var(--muted); font-size: .9rem; }
+  .fc p.warn { color: var(--warn); }
+  .range { display: flex; gap: 8px; margin: 28px 0 8px; align-items: center; flex-wrap: wrap; }
+  .range span { color: var(--muted); font-size: .9rem; margin-right: 4px; }
+  .range button { font: inherit; font-size: .9rem; padding: 4px 14px; border-radius: 16px; border: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer; }
+  .range button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+  .chart { margin-top: 24px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px 16px 8px; }
+  .chart-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+  .chart-head h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .chart-head small { color: var(--muted); }
+  .box { position: relative; height: 190px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; display: none; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: 6px; font-size: .9rem; display: none; max-width: 90vw; }
+
+  @media (max-width: 640px) {
+    .now { grid-template-columns: repeat(2, 1fr); row-gap: 20px; }
+    .m:nth-child(3) { border-left: 0; padding-left: 0; }
+    .power-text { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Weather station <span id="node">node1</span></h1>
+    <div class="sub"><span class="dot" id="dot"></span><span id="conn">Connecting…</span><span id="updated"></span></div>
+  </div>
+  <div class="power">
+    <button class="ghost" id="restart" disabled>Restart</button>
+    <div class="power-text"><b id="power-label">Device power</b><span id="power-hint">Checking status…</span></div>
+    <button class="switch" id="switch" role="switch" aria-checked="false" aria-label="Device power" disabled></button>
+  </div>
+</header>
+
+<section class="now" aria-label="Latest readings">
+  <div class="m"><span class="lbl">Temperature</span><span class="val num"><span id="v-temp">--</span><span class="unit">°C</span></span></div>
+  <div class="m"><span class="lbl">Humidity</span><span class="val num"><span id="v-hum">--</span><span class="unit">%</span></span></div>
+  <div class="m"><span class="lbl">Pressure</span><span class="val num"><span id="v-sea">--</span><span class="unit">hPa</span></span><span class="note num">Sea level · measured <span id="v-press">--</span></span></div>
+  <div class="m"><span class="lbl">Dew point</span><span class="val num"><span id="v-dew">--</span><span class="unit">°C</span></span></div>
+</section>
+<p id="stale"></p>
+
+<section class="fc" aria-label="Forecast">
+  <h2>Forecast · next 6 hours</h2>
+  <div class="now three">
+    <div class="m"><span class="lbl">Chance of rain</span><span class="val num"><span id="f-rain">--</span><span class="unit">%</span></span></div>
+    <div class="m"><span class="lbl">Temperature in 3 h</span><span class="val num"><span id="f-t3">--</span><span class="unit">°C</span></span></div>
+    <div class="m"><span class="lbl">Temperature in 6 h</span><span class="val num"><span id="f-t6">--</span><span class="unit">°C</span></span></div>
+  </div>
+  <p id="f-why">No forecast yet. Start forecaster.py to see one here.</p>
+  <p id="f-score"></p>
+</section>
+
+<div class="range" id="range">
+  <span>Show</span>
+  <button data-h="1" aria-pressed="false">1 h</button>
+  <button data-h="6" aria-pressed="false">6 h</button>
+  <button data-h="24" aria-pressed="true">24 h</button>
+  <button data-h="168" aria-pressed="false">7 days</button>
+</div>
+
+<div class="chart"><div class="chart-head"><h2>Temperature (°C)</h2><small class="num" id="r-temp"></small></div><div class="box"><canvas id="c-temp"></canvas></div></div>
+<div class="chart"><div class="chart-head"><h2>Humidity (%)</h2><small class="num" id="r-hum"></small></div><div class="box"><canvas id="c-hum"></canvas></div></div>
+<div class="chart"><div class="chart-head"><h2>Sea-level pressure (hPa)</h2><small class="num" id="r-sealevel"></small></div><div class="box"><canvas id="c-sealevel"></canvas></div></div>
+<p class="empty" id="empty">No data in this period yet. Try a longer range.</p>
+
+<div id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let hours = 24, pending = null, pendingTimer = null, pin = "";
+const charts = {};
+const series = [["temp", "#b8431f"], ["hum", "#1b6a86"], ["sealevel", "#5a4a8c"]];
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 5000);
+}
+const fmt = (v, d = 1) => (v == null || isNaN(v)) ? "--" : Number(v).toFixed(d);
+const ago = s => s < 90 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago";
+const get = url => fetch(url).then(r => r.ok ? r.json() : Promise.reject(r));
+
+// ---------- Latest readings ----------
+let powerState = null, lastT = null;
+async function loadLatest() {
+  try {
+    const d = await get("/api/latest");
+    $("node").textContent = d.node;
+    const r = d.reading; if (!r) return;
+    $("v-temp").textContent = fmt(r.temp);
+    $("v-hum").textContent = fmt(r.hum, 0);
+    $("v-sea").textContent = fmt(r.sealevel, 0);
+    $("v-press").textContent = fmt(r.press, 0);
+    $("v-dew").textContent = fmt(r.dew);
+    lastT = r.t;
+    renderStale();
+  } catch (e) { $("stale").textContent = "Can't read the database. Check that server.py is still running."; }
+}
+function renderStale() {
+  if (!lastT) { $("updated").textContent = ""; return; }
+  const age = Date.now() / 1000 - lastT;
+  $("updated").textContent = "· Updated " + ago(age);
+  $("stale").textContent = (age > 300 && powerState !== "off") ? "No new data for over 5 minutes. Check the device's Wi-Fi and power." : "";
+}
+
+// ---------- Status + power switch ----------
+async function loadStatus() {
+  try {
+    const s = await get("/api/status");
+    powerState = s.power;
+    const dot = $("dot"), conn = $("conn"), sw = $("switch");
+    if (!s.mqtt) { dot.className = "dot bad"; conn.textContent = "Server can't reach MQTT"; }
+    else if (s.online === false) { dot.className = "dot bad"; conn.textContent = "Device offline"; }
+    else if (s.online === true) { dot.className = "dot on"; conn.textContent = "Device online"; }
+    else { dot.className = "dot"; conn.textContent = "Device status unknown"; }
+
+    if (pending && s.power === pending) { clearTimeout(pendingTimer); pending = null; }
+    const known = s.power === "on" || s.power === "off";
+    sw.setAttribute("aria-checked", String((pending ? pending : s.power) === "on"));
+    sw.disabled = !s.mqtt || s.online !== true || !known || !!pending;
+    $("power-hint").textContent = pending ? "Sending command…"
+      : s.online !== true ? "Device must be online to switch"
+      : s.power === "on" ? "On · measuring, sending data every minute"
+      : s.power === "off" ? "Off · screen dark, not sending data" : "Checking status…";
+    window.pinRequired = s.pin_required;
+    if (restarting) {
+      if (s.online === false) sawOffline = true;
+      if (sawOffline && s.online === true) endRestart("Device is back online.");
+    }
+    $("restart").textContent = restarting ? "Restarting…" : "Restart";
+    $("restart").disabled = restarting || !s.mqtt || s.online !== true;
+    renderStale();
+  } catch (e) { $("conn").textContent = "Can't reach the server"; $("dot").className = "dot bad"; }
+}
+
+$("switch").addEventListener("click", async () => {
+  const target = $("switch").getAttribute("aria-checked") === "true" ? "off" : "on";
+  if (target === "off" && !confirm("Turn the device off?\nThe screen goes dark and data stops. You can turn it back on with this switch.")) return;
+  if (window.pinRequired && !pin) { pin = prompt("Enter the control PIN") || ""; if (!pin) return; }
+  try {
+    const r = await fetch("/api/power", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: target, pin }) });
+    const d = await r.json();
+    if (!r.ok) { if (r.status === 403) pin = ""; throw new Error(d.error); }
+    pending = target;
+    pendingTimer = setTimeout(() => { pending = null; toast("Device did not respond. Check its Wi-Fi and try again."); loadStatus(); }, 10000);
+    loadStatus();
+  } catch (e) { toast(e.message || "Couldn't send the command"); }
+});
+
+// ---------- Restart ----------
+let restarting = false, sawOffline = false, restartTimer = null;
+function endRestart(msg) {
+  restarting = false; sawOffline = false; clearTimeout(restartTimer);
+  if (msg) toast(msg);
+  loadStatus();
+}
+$("restart").addEventListener("click", async () => {
+  if (!confirm("Restart the device?\nIt goes offline for about 30 seconds, then reconnects by itself. Your on/off setting is kept.")) return;
+  if (window.pinRequired && !pin) { pin = prompt("Enter the control PIN") || ""; if (!pin) return; }
+  try {
+    const r = await fetch("/api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
+    const d = await r.json();
+    if (!r.ok) { if (r.status === 403) pin = ""; throw new Error(d.error); }
+    restarting = true; sawOffline = false;
+    restartTimer = setTimeout(() => endRestart(sawOffline ? "Device has not come back yet. Check its Wi-Fi and power." : "No response. The device may not have the restart firmware yet."), 90000);
+    loadStatus();
+  } catch (e) { toast(e.message || "Couldn't send the command"); }
+});
+
+// ---------- Forecast ----------
+async function loadForecast() {
+  try {
+    const d = await get("/api/forecast");
+    const f = d.forecast; if (!f) return;
+    $("f-rain").textContent = fmt(f.rain, 0);
+    $("f-t3").textContent = fmt(f.temp3);
+    $("f-t6").textContent = fmt(f.temp6);
+    const age = Date.now() / 1000 - f.t;
+    $("f-why").textContent = "Why: " + f.reasons + " · made " + ago(age);
+    $("f-why").className = age > 1800 ? "warn" : "";
+    if (age > 1800) $("f-why").textContent += " · forecast is getting old, check that forecaster.py is running";
+    const s = d.score;
+    $("f-score").textContent = s.checked === 0 ? "Accuracy: not scored yet. Each forecast is checked against OpenWeather 6 hours later."
+      : s.rain_events === 0 ? "Accuracy: " + s.checked + " forecasts checked, no rain observed yet (" + s.false_alarms + " false alarms)."
+      : "Accuracy: caught " + s.caught + " of " + s.rain_events + " rain events · " + s.false_alarms + " false alarms · " + s.checked + " forecasts checked";
+  } catch (e) { /* keep the previous values */ }
+}
+
+// ---------- Charts ----------
+function makeChart(key, color) {
+  charts[key] = new Chart($("c-" + key), {
+    type: "line",
+    data: { datasets: [{ data: [], borderColor: color, backgroundColor: color, borderWidth: 1.8, pointRadius: 0, tension: .25 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+      interaction: { mode: "nearest", axis: "x", intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => new Date(i[0].parsed.x).toLocaleString("en-GB") } } },
+      scales: {
+        x: { type: "linear", ticks: { maxTicksLimit: 6, color: "#5d7279", callback: v => {
+          const d = new Date(v);
+          return hours > 24 ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+                            : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }); } }, grid: { color: "#dfe6e8" } },
+        y: { ticks: { color: "#5d7279" }, grid: { color: "#dfe6e8" }, grace: "10%" }
+      }
+    }
+  });
+}
+
+async function loadHistory() {
+  try {
+    const d = await get("/api/history?hours=" + hours);
+    const rows = d.rows.filter(r => r.t);
+    $("empty").style.display = rows.length ? "none" : "block";
+    for (const [key] of series) {
+      const pts = rows.filter(r => r[key] != null).map(r => ({ x: r.t * 1000, y: r[key] }));
+      charts[key].data.datasets[0].data = pts;
+      charts[key].update();
+      const ys = pts.map(p => p.y);
+      $("r-" + key).textContent = ys.length ? "Min " + fmt(Math.min(...ys)) + " · Max " + fmt(Math.max(...ys)) : "";
+    }
+  } catch (e) { toast("Couldn't load history"); }
+}
+
+$("range").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  hours = +b.dataset.h;
+  document.querySelectorAll("#range button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  loadHistory();
+});
+
+series.forEach(([k, c]) => makeChart(k, c));
+loadStatus(); loadLatest(); loadHistory(); loadForecast();
+setInterval(loadStatus, 3000);
+setInterval(loadLatest, 15000);
+setInterval(loadHistory, 60000);
+setInterval(loadForecast, 60000);
+setInterval(renderStale, 30000);
+</script>
+</body>
+</html>
