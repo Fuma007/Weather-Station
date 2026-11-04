@@ -27,7 +27,7 @@ MQTT_HOST = "localhost"        # broker runs on this machine
 MQTT_PORT = 1883
 DB_FILE = "weather.db"
 
-LAT, LON = 18.7883, 98.9853    # Chiang Mai - change to your exact location
+LAT, LON = Lat, Lon # Change to your exact location
 OPENWEATHER_KEY = os.environ.get("OPENWEATHER_KEY", "")
 OPENWEATHER_EVERY_S = 15 * 60
 # ==============================================
